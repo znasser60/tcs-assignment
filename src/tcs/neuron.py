@@ -17,12 +17,20 @@ class Neuron:
         """
         self.difference = np.diff(self.data)
         plt.hist(self.difference, bins=50, density=True)
-        plt.title("Time Distribution of Neuron Firing")
+        plt.title("Time Distribution of a Neuron Firing")
         plt.xlabel("Time (ms)")
         plt.ylabel("Density")
         plt.show()
+    
+    def calc_refractory_period(self): 
+        """
+        Calculate the refractory period of the neuron.
+        """
+        self.refractory_period = np.min(self.difference)
+        return self.refractory_period
 
 if __name__ == "__main__":
     neuron = Neuron("data/Data_neuron.txt")
     neuron.load_data()
     neuron.plot_time_distribution()
+    print("Refractory period: ", neuron.calc_refractory_period())
