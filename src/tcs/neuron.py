@@ -1,4 +1,6 @@
 import numpy as np 
+import scipy as sp
+import scipy.stats as ss 
 import matplotlib.pyplot as plt
 
 class Neuron: 
@@ -28,9 +30,32 @@ class Neuron:
         """
         self.refractory_period = np.min(self.difference)
         return self.refractory_period
+    
+    def fit_exponential(self): 
+        """
+        Fits an exponential function to the time distribution.
+        """
+        def exponential(x, a, b):
+            return a * np.exp(-b * x)
+        
+        self.hist, self.bins = np.histogram(self.difference, bins=50, density=True)
+        self.bin_centers = 0.5 * (self.bins[1:] + self.bins[:-1])
+        self.exp_params, self.exp_cov = sp.optimize.curve_fit(exponential, self.bin_centers, self.hist)
+        r_squared = 1 - (np.sum((self.hist - exponential(self.bin_centers, *self.exp_params))**2) / np.sum((self.hist - np.mean(self.hist))**2))
+        
+        x_axis = np.linspace(0, 100, 100)
+        plt.plot(x_axis, exponential(x_axis, *self.exp_params), label='Exponential Fit', color='red')
+        plt.hist(self.difference, bins=50, density=True, label='Data')
+        plt.title("Exponential Fit to Time Distribution")
+        plt.xlabel("Time (ms)")
+        plt.ylabel("Density")
+        plt.legend()
+        plt.show()
+        print("Exponential Fit Parameters: ", self.exp_params, "R^2: ", r_squared)
 
 if __name__ == "__main__":
     neuron = Neuron("data/Data_neuron.txt")
     neuron.load_data()
     neuron.plot_time_distribution()
     print("Refractory period: ", neuron.calc_refractory_period())
+    neuron.fit_exponential()
