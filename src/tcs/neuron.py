@@ -57,6 +57,14 @@ class Neuron:
         plt.legend()
         plt.show()
     
+    def generate_spike_train(self, num_spikes=1000):
+        """
+        Generates 1000 new values based on the fitted exponential distribution 
+        from the data. 
+        """
+        self.spike_train = np.zeros(num_spikes)
+        self.spike_train = np.cumsum(np.random.exponential(1/self.exp_params[1], num_spikes))
+        return self.spike_train
 
 if __name__ == "__main__":
     neuron = Neuron("data/Data_neuron.txt")
@@ -64,4 +72,5 @@ if __name__ == "__main__":
     neuron.plot_time_distribution()
     print("Refractory period: ", neuron.calc_refractory_period())
     neuron.fit_exponential()
-    neuron.inter_spike_distribution()
+    new_data = neuron.generate_spike_train()
+    print(new_data)
