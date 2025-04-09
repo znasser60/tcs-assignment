@@ -49,9 +49,14 @@ class Neuron:
         plt.title("Exponential Fit to Time Distribution")
         plt.xlabel("Time (ms)")
         plt.ylabel("Density")
+        print("Exponential Fit Parameters: ", self.exp_params, "R^2: ", r_squared)
+
+        t = np.linspace(0, 100, 100)
+        self.inter_spike_distribution = 0.1*np.exp(-0.1 * t)
+        plt.plot(t, self.inter_spike_distribution, label='Analytical Distribution')
         plt.legend()
         plt.show()
-        print("Exponential Fit Parameters: ", self.exp_params, "R^2: ", r_squared)
+    
 
 if __name__ == "__main__":
     neuron = Neuron("data/Data_neuron.txt")
@@ -59,3 +64,4 @@ if __name__ == "__main__":
     neuron.plot_time_distribution()
     print("Refractory period: ", neuron.calc_refractory_period())
     neuron.fit_exponential()
+    neuron.inter_spike_distribution()
