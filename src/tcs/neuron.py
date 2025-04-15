@@ -1,6 +1,5 @@
 import numpy as np 
 import scipy as sp
-import scipy.stats as ss 
 import matplotlib.pyplot as plt
 
 class Neuron: 
@@ -52,12 +51,12 @@ class Neuron:
         print("Exponential Fit Parameters: ", self.exp_params, "R^2: ", r_squared)
 
         t = np.linspace(0, 100, 100)
-        self.inter_spike_distribution = 0.1*np.exp(-0.1 * t)
+        self.inter_spike_distribution = 0.1*np.exp(-0.1 * (t-self.data[0]))
         plt.plot(t, self.inter_spike_distribution, label='Analytical Distribution')
         plt.legend()
         plt.show()
     
-    def generate_spike_train(self, num_spikes=1000):
+    def generate_spike_data(self, num_spikes=1000):
         """
         Generates 1000 new values based on the fitted exponential distribution 
         from the data. 
@@ -66,11 +65,3 @@ class Neuron:
         self.spike_train = np.cumsum(np.random.exponential(1/self.exp_params[1], num_spikes))
         return self.spike_train
 
-if __name__ == "__main__":
-    neuron = Neuron("data/Data_neuron.txt")
-    neuron.load_data()
-    neuron.plot_time_distribution()
-    print("Refractory period: ", neuron.calc_refractory_period())
-    neuron.fit_exponential()
-    new_data = neuron.generate_spike_train()
-    print(new_data)
