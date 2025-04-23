@@ -1,4 +1,4 @@
-from tcs import Neuron
+from tcs import Neuron, SupremeCourt
 import os
 
 def main(): 
