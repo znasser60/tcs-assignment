@@ -1,5 +1,6 @@
 import numpy as np 
 import matplotlib.pyplot as plt
+import os
 
 class SupremeCourt: 
     def __init__(self, hi_file_path, Jij_file_path, SC_file_path): 
@@ -46,7 +47,7 @@ class SupremeCourt:
         N_max = len(set(self.data))
         print(f"N_max = {N_max}")
     
-    def plot_votes(self): 
+    def plot_average_votes(self, save_path=None): 
         """
         Plot the votes of the Supreme Court.
         """
@@ -60,7 +61,6 @@ class SupremeCourt:
         data[data == 0] = -1
 
         mean_si = np.mean(data, axis=0)
-        corr_si_sj = np.einsum('ni,nj->ij', data, data) / data.shape[0]
 
         sorted_indices = np.argsort(mean_si)
         sorted_mean_si = mean_si[sorted_indices]
@@ -74,9 +74,23 @@ class SupremeCourt:
         plt.ylabel(r"$<s_i>_D$", fontsize=12)
         plt.grid(visible=True, alpha=0.5)
         plt.tight_layout()
-        plt.show()
-
+        if save_path: 
+            plt.savefig(save_path)
+        else: 
+            plt.show()
+    def plot_vote_correlation(self, save_path=None): 
+        """
+        Plot the correlation matrix of the votes.
+        """
         # Heatmap of the correlation matrix
+        with open(self.SC_file_path, 'r') as f:
+            lines = [line.strip() for line in f if line.strip()]
+        data = np.array([[int(char) for char in line] for line in 
+                         lines])
+        data[data == 0] = -1
+        mean_si = np.mean(data, axis=0)
+        sorted_indices = np.argsort(mean_si)
+        corr_si_sj = np.einsum('ni,nj->ij', data, data) / data.shape[0]
         sorted_corr_si = corr_si_sj[sorted_indices][:, sorted_indices]
         plt.figure()
         plt.imshow(sorted_corr_si, cmap='gray_r')  # Use 'gray_r' for reversed greyscale
@@ -88,13 +102,22 @@ class SupremeCourt:
         plt.yticks([])
         plt.grid(visible=True, alpha=0.5)
         plt.tight_layout()
-        plt.show()
+        if save_path: 
+            plt.savefig(save_path)
+        else: 
+            plt.show()
 
 
 if __name__ == "__main__":
+    results_dir = "results"
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+
     sc = SupremeCourt("data/hi_ussc_unsorted.txt", "data/Jij_ussc_unsorted.txt", "data/US_SupremeCourt.txt")
     sc.load_data()
     sc.calculate_information()
-    sc.plot_votes()
+   
+    sc.plot_average_votes(save_path=os.path.join(results_dir, "avg_votes_plot.png"))
+    sc.plot_vote_correlation(save_path=os.path.join(results_dir, "correlation_heatmap.png"))
 
     
