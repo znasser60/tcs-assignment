@@ -47,8 +47,6 @@ class Neuron:
         self.bin_centers = 0.5 * (self.bins[1:] + self.bins[:-1])
         self.exp_params, self.exp_cov = sp.optimize.curve_fit(exponential, self.bin_centers, self.hist)
         r_squared = 1 - (np.sum((self.hist - exponential(self.bin_centers, *self.exp_params))**2) / np.sum((self.hist - np.mean(self.hist))**2))
-        # epsilon = 1e-10  
-        # chi_squared = np.sum((self.hist - exponential(self.bin_centers, *self.exp_params))**2 / (self.hist + epsilon))
         x_axis = np.linspace(0, 100, 100)
         plt.figure()
         plt.plot(x_axis, exponential(x_axis, *self.exp_params), label='Exponential Fit', color='red', linewidth=1.5)
@@ -57,9 +55,9 @@ class Neuron:
         plt.xlabel("Time (ms)", fontsize=12)
         plt.ylabel("Density", fontsize=12)
 
-        t = np.linspace(0, 100, 100)
-        self.inter_spike_distribution = self.exp_params[1]*np.exp(-self.exp_params[1] * (t - self.refractory_period))
-        plt.plot(t, self.inter_spike_distribution, label='Analytical Distribution', linewidth=1.5, linestyle='--')
+        t = np.linspace(self.refractory_period, 100, 500)
+        self.inter_spike_distribution = self.exp_params[1] * np.exp(-self.exp_params[1] * (t - self.refractory_period))
+        plt.plot(t, self.inter_spike_distribution, label='Analytical Distribution', linewidth=2, linestyle='--')
         plt.legend()
         plt.grid(visible=True, alpha=0.5)
         plt.tight_layout()
