@@ -51,7 +51,7 @@ class SupremeCourt:
         _, counts = np.unique(self.data, axis=0, return_counts=True)
 
         # Calculate p_D(s)
-        self.p_D = counts / self.n
+        self.p_D = counts / len(self.data)
     
     def calculate_model_values(self):
         """
@@ -178,16 +178,20 @@ class SupremeCourt:
         self.calculate_empirical_values()
         self.calculate_model_values()
 
-        coeffs = np.polyfit(self.p_D, self.p_g, 1)
+        # Calculate R^2 value
+        residuals = self.p_g - self.p_D
+        ss_res = np.sum(residuals**2)
+        ss_tot = np.sum((self.p_D - np.mean(self.p_D))**2)
+        r_squared = 1 - (ss_res / ss_tot)
 
         # Plot the probability of pg(s) against pD(s)
         plt.figure()
         plt.scatter(self.p_D, self.p_g, marker='o', color='black')
         plt.plot(
-            self.p_D, 
-            coeffs[0] * self.p_D + coeffs[1], 
+            [min(self.p_D), max(self.p_D)],
+            [min(self.p_D), max(self.p_D)], 
             color='red', 
-            label=f'Fitted line: y = {coeffs[0]:.2f}x + {coeffs[1]:.2f}'
+            label=f'Ideal line: y = x\n$R^2$ = {r_squared:.2f}'
             )
         
         plt.title(r"$p_D(s)$ against $p_g(s)$", fontsize=14)
@@ -203,58 +207,64 @@ class SupremeCourt:
             plt.show()
 
     def plot_averages_cross_validation(self, avg_save_path=None, corr_save_path=None): 
-            """
-            Plot the average cross-validation results.
-            """
-            self.calculate_empirical_values()
-            self.calculate_model_values()
+        """
+        Plot the average cross-validation results.
+        """
+        self.calculate_empirical_values()
+        self.calculate_model_values()
 
-            # Plot the average <si>_D against <si>
-            plt.figure()
-            plt.scatter(self.mean_si_empirical, self.mean_si_model, marker='o', color='black')
-            coeffs = np.polyfit(self.mean_si_empirical, self.mean_si_model, 1)
-            plt.plot(
-                self.mean_si_empirical, 
-                coeffs[0] * self.mean_si_empirical + coeffs[1], 
-                color='red', 
-                label=f'Fitted line: y = {coeffs[0]:.2f}x + {coeffs[1]:.2f}'
-                )
-            plt.title(r"$<s_i>_D$ against $<s_i>$", fontsize=14)
-            plt.xlabel(r"$<s_i>_D$", fontsize=12)
-            plt.ylabel(r"$<s_i>$", fontsize=12)
-            plt.grid(visible=True, alpha=0.5)
-            plt.legend()
-            plt.tight_layout()
-            if avg_save_path: 
-                plt.savefig(avg_save_path)
-            else: 
-                plt.show()
+        # Plot the average <si>_D against <si>
+        plt.figure()
+        plt.scatter(self.mean_si_empirical, self.mean_si_model, marker='o', color='black')
+        residuals = self.mean_si_model - self.mean_si_empirical
+        ss_res = np.sum(residuals**2)
+        ss_tot = np.sum((self.mean_si_empirical - np.mean(self.mean_si_empirical))**2)
+        r_squared = 1 - (ss_res / ss_tot)
+        plt.plot(
+            [min(self.mean_si_empirical), max(self.mean_si_empirical)], 
+            [min(self.mean_si_empirical), max(self.mean_si_empirical)], 
+            color='red', 
+            label=f'Ideal line: y = x\n$R^2$ = {r_squared:.2f}'
+            )
+        plt.title(r"$<s_i>_D$ against $<s_i>$", fontsize=14)
+        plt.xlabel(r"$<s_i>_D$", fontsize=12)
+        plt.ylabel(r"$<s_i>$", fontsize=12)
+        plt.grid(visible=True, alpha=0.5)
+        plt.legend()
+        plt.tight_layout()
+        if avg_save_path: 
+            plt.savefig(avg_save_path)
+        else: 
+            plt.show()
 
-            # Plot the correlations <si sj>_D against <si sj>
-            plt.figure()
-            plt.scatter(
-                self.correlation_sisj_empirical.flatten(), 
-                self.correlation_sisj_model.flatten(), 
-                marker='o', 
-                color='black'
-                )
-            coeffs = np.polyfit(self.correlation_sisj_empirical.flatten(), self.correlation_sisj_model.flatten(), 1)
-            plt.plot(
-                self.correlation_sisj_empirical.flatten(), 
-                coeffs[0] * self.correlation_sisj_empirical.flatten() + coeffs[1], 
-                color='red', 
-                label=f'Fitted line: y = {coeffs[0]:.2f}x + {coeffs[1]:.2f}'
-                )
-            plt.title(r"$<s_i s_j>_D$ against $<s_i s_j>$", fontsize=14)
-            plt.xlabel(r"$<s_i s_j>_D$", fontsize=12)
-            plt.ylabel(r"$<s_i s_j>$", fontsize=12)
-            plt.grid(visible=True, alpha=0.5)
-            plt.legend()
-            plt.tight_layout()
-            if corr_save_path: 
-                plt.savefig(corr_save_path)
-            else: 
-                plt.show()
+        # Plot the correlations <si sj>_D against <si sj>
+        plt.figure()
+        plt.scatter(
+            self.correlation_sisj_empirical.flatten(), 
+            self.correlation_sisj_model.flatten(), 
+            marker='o', 
+            color='black'
+            )
+        residuals = self.correlation_sisj_model.flatten() - self.correlation_sisj_empirical.flatten()
+        ss_res = np.sum(residuals**2)
+        ss_tot = np.sum((self.correlation_sisj_empirical.flatten() - np.mean(self.correlation_sisj_empirical.flatten()))**2)
+        r_squared = 1 - (ss_res / ss_tot)
+        plt.plot(
+            [min(self.correlation_sisj_empirical.flatten()), max(self.correlation_sisj_empirical.flatten())], 
+            [min(self.correlation_sisj_empirical.flatten()), max(self.correlation_sisj_empirical.flatten())], 
+            color='red', 
+            label=f'Ideal line: y = x\n$R^2$ = {r_squared:.2f}'
+            )
+        plt.title(r"$<s_i s_j>_D$ against $<s_i s_j>$", fontsize=14)
+        plt.xlabel(r"$<s_i s_j>_D$", fontsize=12)
+        plt.ylabel(r"$<s_i s_j>$", fontsize=12)
+        plt.grid(visible=True, alpha=0.5)
+        plt.legend()
+        plt.tight_layout()
+        if corr_save_path: 
+            plt.savefig(corr_save_path)
+        else: 
+            plt.show()
             
 if __name__ == "__main__":
     results_dir = "results"
