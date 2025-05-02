@@ -9,9 +9,11 @@ class Neuron:
         """
         self.file_path = file_path 
 
+
     def load_data(self): 
         self.data = np.loadtxt(self.file_path)
     
+
     def plot_time_distribution(self, save_path=None): 
         """
         Plot the time distribution of the neuron firing.
@@ -29,12 +31,14 @@ class Neuron:
         else: 
             plt.show()
     
+
     def calc_refractory_period(self): 
         """
         Calculate the refractory period of the neuron.
         """
         self.refractory_period = np.min(self.difference)
         return self.refractory_period
+    
     
     def fit_exponential(self, save_path=None): 
         """
@@ -68,6 +72,7 @@ class Neuron:
 
         print(f"Exponential Fit Parameters: {self.exp_params}, R^2: {r_squared}")
     
+
     def generate_spike_data(self, num_spikes=1000, save_path=None):
         """
         Generates 1000 new values based on the fitted exponential distribution 

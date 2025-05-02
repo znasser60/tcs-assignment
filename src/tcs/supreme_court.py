@@ -1,6 +1,6 @@
 import numpy as np 
 import matplotlib.pyplot as plt
-import os
+
 
 class SupremeCourt: 
     def __init__(self, num_judges, hi_file_path, Jij_file_path, SC_file_path): 
@@ -23,12 +23,14 @@ class SupremeCourt:
         self.p_D = None
         self.all_states = None
 
+
     def load_data(self):
         with open(self.SC_file_path, 'r') as f:
             lines = [line.strip() for line in f if line.strip()]
         self.data = np.array([[int(c) if c != '0' else -1 for c in line] for line in lines])
         self.n = self.data.shape[1]
     
+
     def load_parameters(self):
         self.hi_unsorted = np.loadtxt(self.hi_file_path)
         self.Jij_unsorted = np.loadtxt(self.Jij_file_path)
@@ -41,6 +43,7 @@ class SupremeCourt:
                 self.Jij_matrix[j, i] = self.Jij_unsorted[idx]
                 idx += 1
     
+
     def calculate_empirical_values(self):
         """
         Calculates <si>D and <si sj>D from the data.
@@ -53,6 +56,7 @@ class SupremeCourt:
         # Calculate p_D(s)
         self.p_D = counts / len(self.data)
     
+
     def calculate_model_values(self):
         """
         Calculates <si>D and <si sj>D from the model.
@@ -265,33 +269,68 @@ class SupremeCourt:
             plt.savefig(corr_save_path)
         else: 
             plt.show()
-            
-if __name__ == "__main__":
-    results_dir = "results"
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
-
-    sc = SupremeCourt(
-        num_judges=9, 
-        hi_file_path="data/hi_ussc_unsorted.txt", 
-        Jij_file_path="data/Jij_ussc_unsorted.txt", 
-        SC_file_path="data/US_SupremeCourt.txt"
-        )
     
-    sc.load_data()
-    sc.calculate_information()
-   
-    sc.plot_average_votes(save_path=os.path.join(results_dir, "avg_votes_plot.png"))
-    sc.plot_vote_correlation(save_path=os.path.join(results_dir, "correlation_heatmap.png"))
-    sc.plot_fitted_parameters(
-        save_hi_path=os.path.join(results_dir, "hi_heatmap.png"),
-        save_Jij_path=os.path.join(results_dir, "Jij_heatmap.png")
-    )
+    def plot_conservative_probabilities(self, save_path=None): 
+        """
+        Calculate and plot the probability of conservative votes PI(k) for the independent model
+        and compare it with the empirical probability PD(k) from the actual data.
+        """
+        self.calculate_empirical_values()
+        self.calculate_model_values()
 
-    sc.plot_probability_cross_validation(save_path=os.path.join(results_dir, "cross_validation_plot.png"))
-    sc.plot_averages_cross_validation(
-        avg_save_path=os.path.join(results_dir, "avg_cross_validation_plot.png"),
-        corr_save_path=os.path.join(results_dir, "corr_cross_validation_plot.png")
-    )
+        sorted_indices = np.argsort(self.mean_si_model)
+        p_i_plus = (1 + self.mean_si_model[sorted_indices]) / 2  # Probability of each judge voting conservative, sorted by mean
+        num_conservative = np.sum(p_i_plus > 0.5)  # Number of judges more conservative on average
+        expected_k_peak = int(round(np.sum(p_i_plus)))  # Expected mode of PI(k), which is just the expected value
 
+        # Print the sorted probabilities and the number of conservative judges
+        print("pi(+1) for each judge, sorted:", p_i_plus)
+        print("Number of more conservative judges (p_i(+1) > 0.5):", num_conservative)
+        print("Expected peak of PI(k):", expected_k_peak)
+
+        # Calculate PI(k) for the independent model
+        k_values = np.arange(1, self.num_judges + 1)
+        PI_k = np.zeros_like(k_values, dtype=float)
+        for k in k_values:
+            PI_k[k - 1] = np.sum([
+                np.prod([p_i_plus[i] if bit else (1 - p_i_plus[i]) for i, bit in enumerate(bin_comb)])
+                for bin_comb in np.array(np.meshgrid(*[[0, 1]] * self.num_judges)).T.reshape(-1, self.num_judges)
+                if np.sum(bin_comb) == k
+            ])
+
+        # Calculate PD(k) from the actual data
+        conservative_votes = np.sum(
+            (self.data[:, sorted_indices] + 1) // 2, 
+            axis=1
+        )
+        
+        PD_k = np.zeros_like(k_values, dtype=float)
+        
+        for k in k_values:
+            PD_k[k - 1] = np.sum(conservative_votes == k) / len(conservative_votes)
+
+        # Calculate PP(k) from the fitted Ising model
+        states = np.unique(self.data, axis=0)
+        PP_k = np.zeros_like(k_values, dtype=float)
+        for k in k_values:
+            PP_k[k - 1] = np.sum([
+            self.p_g[idx] for idx, state in enumerate(states)
+            if np.sum((state + 1) // 2) == k
+            ])
+
+        # Plot PI(k), PD(k), and PP(k) as a function of the number of conservative votes (k)
+        plt.figure()
+        plt.plot(k_values, PI_k, color='gray', alpha=0.7, label=r"$P_I(k)$ (Independent Model)", marker='o')
+        plt.plot(k_values, PD_k, color='blue', alpha=0.7, label=r"$P_D(k)$ (Empirical Data)", marker='o')
+        plt.plot(k_values, PP_k, color='red', alpha=0.7, label=r"$P_P(k)$ (Fitted Ising Model)", marker='o')
+        plt.title(r"Probabilites $P_I(k)$, $P_D(k)$, and $P_P(k)$", fontsize=14)
+        plt.xlabel(r"k", fontsize=12)
+        plt.ylabel(r"$P(k)$", fontsize=12)
+        plt.legend()
+        plt.grid(visible=True, alpha=0.5)
+
+        if save_path:
+            plt.savefig(save_path)
+        else:
+            plt.show()
     
