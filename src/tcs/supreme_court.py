@@ -21,7 +21,6 @@ class SupremeCourt:
         self.correlation_sisj_model = None
         self.p_g = None
         self.p_D = None
-        self.all_states = None
 
 
     def load_data(self):

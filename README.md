@@ -28,3 +28,4 @@ pip install -e .
 python -m main
 ```
 
+### All plots are currently in the Results directory. 
