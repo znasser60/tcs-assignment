@@ -11,137 +11,141 @@ class SupremeCourt:
         self.Jij_file_path = Jij_file_path 
         self.SC_file_path = SC_file_path 
         self.num_judges = num_judges
+        self.hi_unsorted = None
+        self.Jij_unsorted = None
         self.data = None
+        self.n = None
+        self.mean_si_empirical = None
+        self.correlation_sisj_empirical = None
+        self.mean_si_model = None
+        self.correlation_sisj_model = None
+        self.p_g = None
+        self.p_D = None
+        self.all_states = None
 
-    def load_data(self): 
-        """
-        Load data from the file path.
-        """
+    def load_data(self):
         with open(self.SC_file_path, 'r') as f:
-            self.data = [line.strip() for line in f]
+            lines = [line.strip() for line in f if line.strip()]
+        self.data = np.array([[int(c) if c != '0' else -1 for c in line] for line in lines])
+        self.n = self.data.shape[1]
+    
+    def load_parameters(self):
+        self.hi_unsorted = np.loadtxt(self.hi_file_path)
+        self.Jij_unsorted = np.loadtxt(self.Jij_file_path)
+
+        self.Jij_matrix = np.zeros((self.num_judges, self.num_judges))
+        idx = 0
+        for i in range(self.n):
+            for j in range(i + 1, self.n):
+                self.Jij_matrix[i, j] = self.Jij_unsorted[idx]
+                self.Jij_matrix[j, i] = self.Jij_unsorted[idx]
+                idx += 1
+    
+    def calculate_empirical_values(self):
+        """
+        Calculates <si>D and <si sj>D from the data.
+        """
+        # Calculate <si>_D and <si sj>_D
+        self.mean_si_empirical = np.mean(self.data, axis=0)
+        self.correlation_sisj_empirical = np.einsum('ni,nj->ij', self.data, self.data) / self.data.shape[0]
+        _, counts = np.unique(self.data, axis=0, return_counts=True)
+
+        # Calculate p_D(s)
+        self.p_D = counts / self.n
+    
+    def calculate_model_values(self):
+        """
+        Calculates <si>D and <si sj>D from the model.
+        """
+        states, _ = np.unique(self.data, axis=0, return_counts=True)
+
+        # Calculate p_g(s) 
+        if self.p_g is None:
+            exp_terms = []
+            for state in states:
+                exp_term = np.exp(np.dot(self.hi_unsorted, state) + 0.5*np.sum(self.Jij_matrix * np.outer(state, state)))
+                exp_terms.append(exp_term)
+            exp_terms = np.array(exp_terms)
+
+            Z_g = np.sum(exp_terms)
+            self.p_g = exp_terms / Z_g
+
+        # Calculate <si> and <si sj>
+        if self.mean_si_model is None or self.correlation_sisj_model is None:
+            self.mean_si_model = np.sum(states * self.p_g[:, None], axis=0)
+            self.correlation_sisj_model = np.einsum('si,sj,s->ij', states, states, self.p_g)
+
 
     def calculate_information(self): 
         """
         Calculate the information of the number of spins n, the number of states the data can observe 2^n, 
         the number N of datapoints, and the number N_max of different states that can be observed. 
         """
+        self.calculate_empirical_values()
         # Calculate n, the number of spins
-        n_values = []
-        for i, entry in enumerate(self.data):
-            n = sum(digit.isdigit() for digit in entry)
-            n_values.append(n)
+        unique_states = set(map(tuple, self.data))
         
-        if len(set(n_values)) == 1:
-            print(f"n = {n_values[0]}")
-        else: 
-            print("n values are not equal")
-
-        # Calculate the number of states that can be observed 
-        states = 2**n_values[0]
-        print(f"Number of states = {states}")
+        print(f"n = {self.n}")
+        print(f"Number of possible states = {2 ** self.n}")
+        print(f"N = {len(self.data)}")
+        print(f"N_max = {len(unique_states)}")
     
-        # Calculate N, the number of datapoints
-        N = len(self.data)
-        print(f"N = {N}")
 
-        # Calculate N_max, the number of different states that can be observed
-        N_max = len(set(self.data))
-        print(f"N_max = {N_max}")
-    
     def plot_average_votes(self, save_path=None): 
         """
         Plot the votes of the Supreme Court.
         """
-
         # Plot the value of <si>_D (the average of the votes) as a function of i. 
-
-        with open(self.SC_file_path, 'r') as f:
-            lines = [line.strip() for line in f if line.strip()]
-        data = np.array([[int(char) for char in line] for line in 
-                         lines])
-        data[data == 0] = -1
-
-        mean_si = np.mean(data, axis=0)
-
-        sorted_indices = np.argsort(mean_si)
-        sorted_mean_si = mean_si[sorted_indices]
-        i = np.arange(len(sorted_mean_si))
-
+        self.calculate_empirical_values()
+        sorted_indices = np.argsort(self.mean_si_empirical)
         plt.figure()
-        plt.scatter(i, sorted_mean_si, marker='o', color='black')
-        plt.title(r"Mean $<s_i>_D$ as a function of i", fontsize=14)
-        plt.xlabel("i", fontsize=12)
-        plt.xticks([])
-        plt.ylabel(r"$<s_i>_D$", fontsize=12)
-        plt.grid(visible=True, alpha=0.5)
-        plt.tight_layout()
-        if save_path: 
+        plt.scatter(np.arange(self.n), self.mean_si_empirical[sorted_indices], color='black')
+        plt.title(r"Mean $<s_i>$ as a function of i")
+        plt.xlabel("Justice (sorted)")
+        plt.ylabel(r"$<s_i>$")
+        plt.grid(True, alpha=0.5)
+        if save_path:
             plt.savefig(save_path)
-        else: 
+        else:
             plt.show()
 
     def plot_vote_correlation(self, save_path=None): 
         """
-        Plot the correlation matrix of the votes.
+        Plot a heatmap of the correlation matrix of the Judges' votes.
         """
-        # Heatmap of the correlation matrix
-        with open(self.SC_file_path, 'r') as f:
-            lines = [line.strip() for line in f if line.strip()]
-        data = np.array([[int(char) for char in line] for line in 
-                         lines])
-        data[data == 0] = -1
-        mean_si = np.mean(data, axis=0)
-        sorted_indices = np.argsort(mean_si)
-        corr_si_sj = np.einsum('ni,nj->ij', data, data) / data.shape[0]
-        sorted_corr_si = corr_si_sj[sorted_indices][:, sorted_indices]
+        self.calculate_empirical_values()
+        sorted_indices = np.argsort(self.mean_si_empirical)
+        sorted_corr = self.correlation_sisj_empirical[sorted_indices][:, sorted_indices]
+
         plt.figure()
-        plt.imshow(sorted_corr_si, cmap='gray_r')  # Use 'gray_r' for reversed greyscale
+        plt.imshow(sorted_corr, cmap='gray_r')
         plt.colorbar()
-        plt.title(r"Correlation matrix $<s_i s_j>_D$", fontsize=14)
-        plt.xlabel("i", fontsize=12)
-        plt.ylabel("j", fontsize=12)
-        plt.xticks(ticks=np.arange(len(sorted_indices)), labels=sorted_indices, fontsize=8, rotation=90)
-        plt.yticks(ticks=np.arange(len(sorted_indices)), labels=sorted_indices, fontsize=8)
-        plt.grid(visible=True, alpha=0.5)
+        plt.title(r"Correlation matrix $<s_i s_j>$")
+        plt.xticks(np.arange(self.n), sorted_indices, fontsize=8, rotation=90)
+        plt.yticks(np.arange(self.n), sorted_indices, fontsize=8)
         plt.tight_layout()
-        if save_path: 
+        if save_path:
             plt.savefig(save_path)
-        else: 
+        else:
             plt.show()
 
     def plot_fitted_parameters(self, save_hi_path=None, save_Jij_path=None): 
         """
         Plot heatmaps of the fitted hi vector and Jij matrix, reordered by <si>_D.
         """
-        hi_unsorted = np.loadtxt(self.hi_file_path)
-        Jij_unsorted = np.loadtxt(self.Jij_file_path)
+        self.load_parameters()
+        self.calculate_empirical_values()
+        sorted_indices = np.argsort(self.mean_si_empirical)
 
-
-        Jij_matrix = np.zeros((self.num_judges, self.num_judges))
-        idx = 0
-        for i in range(self.num_judges):
-            for j in range(i+1, self.num_judges):
-                Jij_matrix[i, j] = Jij_unsorted[idx]
-                Jij_matrix[j, i] = Jij_unsorted[idx]
-                idx += 1
-
-        with open(self.SC_file_path, 'r') as f:
-            lines = [line.strip() for line in f if line.strip()]
-
-        # Sort by mean magnetisations 
-        data = np.array([[int(char) for char in line] for line in lines])
-        data[data == 0] = -1
-        mean_si = np.mean(data, axis=0)
-        sorted_indices = np.argsort(mean_si)
-
-        hi_sorted = hi_unsorted[sorted_indices]
-        Jij_sorted = Jij_matrix[sorted_indices][:, sorted_indices]
+        hi_sorted = self.hi_unsorted[sorted_indices]
+        Jij_sorted = self.Jij_matrix[sorted_indices][:, sorted_indices]
 
         # Plot hi heatmap
         plt.figure()
         plt.imshow(hi_sorted.reshape(1, -1), cmap='gray_r', aspect='auto')
         plt.colorbar()
         plt.title(r"Fitted $h_i$ Values", fontsize=14)
+        plt.xlabel("i", fontsize=12)
         plt.yticks([])
         plt.xticks(ticks=np.arange(len(hi_sorted)), labels=sorted_indices, fontsize=8, rotation=90)
         plt.tight_layout()
@@ -155,9 +159,12 @@ class SupremeCourt:
         plt.imshow(Jij_sorted, cmap='gray_r')
         plt.colorbar()
         plt.title(r"Fitted $J_{ij}$ Values", fontsize=14)
+        plt.xlabel("i", fontsize=12)
+        plt.ylabel("j", fontsize=12)
         plt.xticks(ticks=np.arange(len(Jij_sorted)), labels=sorted_indices, fontsize=8, rotation=90)
         plt.yticks(ticks=np.arange(len(Jij_sorted)), labels=sorted_indices, fontsize=8)
         plt.tight_layout()
+
         if save_Jij_path:
             plt.savefig(save_Jij_path)
         else:
@@ -168,54 +175,24 @@ class SupremeCourt:
         Plot the probability of pg(s) against pD(s) to cross-validate 
         the theoretical model against the data. 
         """
+        self.calculate_empirical_values()
+        self.calculate_model_values()
 
-        hi_unsorted = np.loadtxt(self.hi_file_path)
-        Jij_unsorted = np.loadtxt(self.Jij_file_path)
-
-        with open(self.SC_file_path, 'r') as f:
-            lines = [line.strip() for line in f if line.strip()]
-
-        data = np.array([[int(char) for char in line] for line in lines])
-        data[data == 0] = -1
-
-        Jij_matrix = np.zeros((self.num_judges, self.num_judges))
-        idx = 0
-        for i in range(self.num_judges):
-            for j in range(i+1, self.num_judges):
-                Jij_matrix[i, j] = Jij_unsorted[idx]
-                Jij_matrix[j, i] = Jij_unsorted[idx]
-                idx += 1
-        
-        # Calculate p_D(s) 
-        states, counts = np.unique(data, axis=0, return_counts=True)
-        N = len(data)
-        p_D = counts / N
-
-        # Calculate p_g(s) 
-        exp_terms = []
-        for state in states:
-            exp_term = np.exp(np.dot(hi_unsorted, state) + 0.5*np.sum(Jij_matrix * np.outer(state, state)))
-            exp_terms.append(exp_term)
-        exp_terms = np.array(exp_terms)
-
-        Z_g = np.sum(exp_terms)
-        p_g = exp_terms / Z_g
-
-        coeffs = np.polyfit(p_D, p_g, 1)
+        coeffs = np.polyfit(self.p_D, self.p_g, 1)
 
         # Plot the probability of pg(s) against pD(s)
         plt.figure()
-        plt.scatter(p_D, p_g, marker='o', color='black')
+        plt.scatter(self.p_D, self.p_g, marker='o', color='black')
         plt.plot(
-            p_D, 
-            coeffs[0] * p_D + coeffs[1], 
+            self.p_D, 
+            coeffs[0] * self.p_D + coeffs[1], 
             color='red', 
             label=f'Fitted line: y = {coeffs[0]:.2f}x + {coeffs[1]:.2f}'
             )
         
-        plt.title(r"p_D(s) against p_g(s)", fontsize=14)
-        plt.xlabel("i", fontsize=12)
-        plt.ylabel("Probability", fontsize=12)
+        plt.title(r"$p_D(s)$ against $p_g(s)$", fontsize=14)
+        plt.xlabel(r"$p_D(s)$", fontsize=12)
+        plt.ylabel(r"$p_g(s)$", fontsize=12)
         plt.grid(visible=True, alpha=0.5)
         plt.legend()
         plt.tight_layout()
@@ -225,8 +202,60 @@ class SupremeCourt:
         else: 
             plt.show()
 
+    def plot_averages_cross_validation(self, avg_save_path=None, corr_save_path=None): 
+            """
+            Plot the average cross-validation results.
+            """
+            self.calculate_empirical_values()
+            self.calculate_model_values()
 
+            # Plot the average <si>_D against <si>
+            plt.figure()
+            plt.scatter(self.mean_si_empirical, self.mean_si_model, marker='o', color='black')
+            coeffs = np.polyfit(self.mean_si_empirical, self.mean_si_model, 1)
+            plt.plot(
+                self.mean_si_empirical, 
+                coeffs[0] * self.mean_si_empirical + coeffs[1], 
+                color='red', 
+                label=f'Fitted line: y = {coeffs[0]:.2f}x + {coeffs[1]:.2f}'
+                )
+            plt.title(r"$<s_i>_D$ against $<s_i>$", fontsize=14)
+            plt.xlabel(r"$<s_i>_D$", fontsize=12)
+            plt.ylabel(r"$<s_i>$", fontsize=12)
+            plt.grid(visible=True, alpha=0.5)
+            plt.legend()
+            plt.tight_layout()
+            if avg_save_path: 
+                plt.savefig(avg_save_path)
+            else: 
+                plt.show()
 
+            # Plot the correlations <si sj>_D against <si sj>
+            plt.figure()
+            plt.scatter(
+                self.correlation_sisj_empirical.flatten(), 
+                self.correlation_sisj_model.flatten(), 
+                marker='o', 
+                color='black'
+                )
+            coeffs = np.polyfit(self.correlation_sisj_empirical.flatten(), self.correlation_sisj_model.flatten(), 1)
+            plt.plot(
+                self.correlation_sisj_empirical.flatten(), 
+                coeffs[0] * self.correlation_sisj_empirical.flatten() + coeffs[1], 
+                color='red', 
+                label=f'Fitted line: y = {coeffs[0]:.2f}x + {coeffs[1]:.2f}'
+                )
+            plt.title(r"$<s_i s_j>_D$ against $<s_i s_j>$", fontsize=14)
+            plt.xlabel(r"$<s_i s_j>_D$", fontsize=12)
+            plt.ylabel(r"$<s_i s_j>$", fontsize=12)
+            plt.grid(visible=True, alpha=0.5)
+            plt.legend()
+            plt.tight_layout()
+            if corr_save_path: 
+                plt.savefig(corr_save_path)
+            else: 
+                plt.show()
+            
 if __name__ == "__main__":
     results_dir = "results"
     if not os.path.exists(results_dir):
@@ -250,5 +279,9 @@ if __name__ == "__main__":
     )
 
     sc.plot_probability_cross_validation(save_path=os.path.join(results_dir, "cross_validation_plot.png"))
+    sc.plot_averages_cross_validation(
+        avg_save_path=os.path.join(results_dir, "avg_cross_validation_plot.png"),
+        corr_save_path=os.path.join(results_dir, "corr_cross_validation_plot.png")
+    )
 
     

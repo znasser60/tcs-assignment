@@ -88,7 +88,4 @@ class Neuron:
             plt.savefig(save_path)
         else: 
             plt.show()
-        # # Quantify the difference between the original and generated data
-        # ks_statistic, p_value = sp.stats.ks_2samp(self.difference, np.diff(self.gen_spike_data))
-        # print(f"KS Statistic: {ks_statistic}, p-value: {p_value}")
 
