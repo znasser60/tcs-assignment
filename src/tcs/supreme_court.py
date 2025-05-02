@@ -163,6 +163,69 @@ class SupremeCourt:
         else:
             plt.show()
 
+    def plot_probability_cross_validation(self, save_path=None): 
+        """
+        Plot the probability of pg(s) against pD(s) to cross-validate 
+        the theoretical model against the data. 
+        """
+
+        hi_unsorted = np.loadtxt(self.hi_file_path)
+        Jij_unsorted = np.loadtxt(self.Jij_file_path)
+
+        with open(self.SC_file_path, 'r') as f:
+            lines = [line.strip() for line in f if line.strip()]
+
+        data = np.array([[int(char) for char in line] for line in lines])
+        data[data == 0] = -1
+
+        Jij_matrix = np.zeros((self.num_judges, self.num_judges))
+        idx = 0
+        for i in range(self.num_judges):
+            for j in range(i+1, self.num_judges):
+                Jij_matrix[i, j] = Jij_unsorted[idx]
+                Jij_matrix[j, i] = Jij_unsorted[idx]
+                idx += 1
+        
+        # Calculate p_D(s) 
+        states, counts = np.unique(data, axis=0, return_counts=True)
+        N = len(data)
+        p_D = counts / N
+
+        # Calculate p_g(s) 
+        exp_terms = []
+        for state in states:
+            exp_term = np.exp(np.dot(hi_unsorted, state) + 0.5*np.sum(Jij_matrix * np.outer(state, state)))
+            exp_terms.append(exp_term)
+        exp_terms = np.array(exp_terms)
+
+        Z_g = np.sum(exp_terms)
+        p_g = exp_terms / Z_g
+
+        coeffs = np.polyfit(p_D, p_g, 1)
+
+        # Plot the probability of pg(s) against pD(s)
+        plt.figure()
+        plt.scatter(p_D, p_g, marker='o', color='black')
+        plt.plot(
+            p_D, 
+            coeffs[0] * p_D + coeffs[1], 
+            color='red', 
+            label=f'Fitted line: y = {coeffs[0]:.2f}x + {coeffs[1]:.2f}'
+            )
+        
+        plt.title(r"p_D(s) against p_g(s)", fontsize=14)
+        plt.xlabel("i", fontsize=12)
+        plt.ylabel("Probability", fontsize=12)
+        plt.grid(visible=True, alpha=0.5)
+        plt.legend()
+        plt.tight_layout()
+
+        if save_path: 
+            plt.savefig(save_path)
+        else: 
+            plt.show()
+
+
 
 if __name__ == "__main__":
     results_dir = "results"
@@ -185,5 +248,7 @@ if __name__ == "__main__":
         save_hi_path=os.path.join(results_dir, "hi_heatmap.png"),
         save_Jij_path=os.path.join(results_dir, "Jij_heatmap.png")
     )
+
+    sc.plot_probability_cross_validation(save_path=os.path.join(results_dir, "cross_validation_plot.png"))
 
     
